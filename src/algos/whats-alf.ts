@@ -1,9 +1,11 @@
 import { InvalidRequestError } from '@atproto/xrpc-server'
 import { QueryParams } from '../lexicon/types/app/bsky/feed/getFeedSkeleton'
 import { AppContext } from '../config'
+import dotenv from 'dotenv'
+dotenv.config()
 
 // max 15 chars
-export const shortname = 'whats-alf'
+export const shortname = process.env.RECORD_NAME
 
 export const handler = async (ctx: AppContext, params: QueryParams) => {
   let builder = ctx.db

@@ -6,7 +6,6 @@ import { createServer } from './lexicon'
 import feedGeneration from './methods/feed-generation'
 import describeGenerator from './methods/describe-generator'
 import { createDb, Database, migrateToLatest } from './db'
-import { FirehoseSubscription } from './subscription'
 import { AppContext, Config } from './config'
 import wellKnown from './well-known'
 
@@ -14,25 +13,21 @@ export class FeedGenerator {
   public app: express.Application
   public server?: http.Server
   public db: Database
-  public firehose: FirehoseSubscription
   public cfg: Config
 
   constructor(
     app: express.Application,
     db: Database,
-    firehose: FirehoseSubscription,
     cfg: Config,
   ) {
     this.app = app
     this.db = db
-    this.firehose = firehose
     this.cfg = cfg
   }
 
   static create(cfg: Config) {
     const app = express()
     const db = createDb(cfg.sqliteLocation)
-    const firehose = new FirehoseSubscription(db, cfg.subscriptionEndpoint)
 
     const didCache = new MemoryCache()
     const didResolver = new DidResolver({
@@ -52,18 +47,23 @@ export class FeedGenerator {
       db,
       didResolver,
       cfg,
+      req: express.request,
     }
+
     feedGeneration(server, ctx)
     describeGenerator(server, ctx)
     app.use(server.xrpc.router)
     app.use(wellKnown(ctx))
 
-    return new FeedGenerator(app, db, firehose, cfg)
+    app.get('/', (_, res) => {
+      res.send('This is a feed generator for custom feed services at Bluesky');
+    });
+
+    return new FeedGenerator(app, db, cfg)
   }
 
   async start(): Promise<http.Server> {
     await migrateToLatest(this.db)
-    this.firehose.run(this.cfg.subscriptionReconnectDelay)
     this.server = this.app.listen(this.cfg.port, this.cfg.listenhost)
     await events.once(this.server, 'listening')
     return this.server
